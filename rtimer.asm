@@ -70,7 +70,7 @@ ret_main2
 ;ここからメイン
 main
 		;内部クロックキャリブレーション
-		call		0x3FF		;工場出荷時データ読み込み
+;		call		0x3FF		;工場出荷時データ読み込み
 		bsf			STATUS,RP0	;Bank=1 
 		movwf		OSCCAL		;OSCALに値を設定 
 		bcf			STATUS,RP0	;Bank=0
