@@ -11,7 +11,8 @@ pic_led_helloworld
 
 pickit2 との接続方法
 --------------------
-![回路図] (http://www006.upp.so-net.ne.jp/picbegin/proj1/pic_zu802.gif).
+![回路図] (http://www006.upp.so-net.ne.jp/picbegin/proj1/pic_zu802.gif)
+![回路図] http://www006.upp.so-net.ne.jp/picbegin/proj1/pic_zu802.gif
 
 pickit2 での書き込み方法
 ------------------------
