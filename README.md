@@ -20,6 +20,6 @@ $ pk2cmd -PPIC12F683 -M -F dist/default/production/ramen_timer.X.production.hex
 
 pickit2 で電源供給方法
 ----------------------
-$ pk2cmd -PPIC12F683 -W         # 5V 供給
-$ pk2cmd -PPIC12F683 -W -A 3.3  # 3.3V 供給
-$ pk2cmd -PPIC12F683 -T         # pickit2 からの電源供給停止
+$ pk2cmd -PPIC12F683 -T         # 5V 供給
+$ pk2cmd -PPIC12F683 -T -A 3.3  # 3.3V 供給
+$ pk2cmd -PPIC12F683 -W         # pickit2 からの電源供給停止
