@@ -1,5 +1,5 @@
-	list      p=12f629
-	#include <p12f629.inc>
+	list      p=12f683
+	#include <p12f683.inc>
 
 	errorlevel  -302
 
@@ -72,7 +72,8 @@ main
 		;内部クロックキャリブレーション
 ;		call		0x3FF		;工場出荷時データ読み込み
 		bsf			STATUS,RP0	;Bank=1 
-		movwf		OSCCAL		;OSCALに値を設定 
+		movlw		0x60		;4MHz
+		movwf		OSCCON		;OSCALに値を設定 
 		bcf			STATUS,RP0	;Bank=0
 
 		;ここからメイン処理
@@ -82,7 +83,7 @@ main
 
 		clrf		GPIO		;GPIO出力を0に
 		movlw		0x07		;
-		movwf		CMCON		;コンパレータを使用禁止に設定
+		movwf		CMCON0		;コンパレータを使用禁止に設定
 		bsf			STATUS,RP0	;Bank=1
 		clrf		TRISIO		;GPIOを出力に設定
 		bsf			TRISIO,5	;GP5だけ入力に設定
