@@ -72,8 +72,8 @@
 #define		LED1		GPIO,0	;LED用ポート
 #define		LED2		GPIO,1	;LED用ポート
 #define		LED3		GPIO,2	;LED用ポート
-#define		PUSHSW1		GPIO,3	;プッシュスイッチ用ポート
-#define		PUSHSW2		GPIO,4	;プッシュスイッチ用ポート
+#define		PUSHSW1		GPIO,4	;プッシュスイッチ用ポート
+#define		PUSHSW2		GPIO,3	;プッシュスイッチ用ポート
 #define		BEEP		GPIO,5	;圧電スピーカポート
 
 ;***** VARIABLE DEFINITIONS
@@ -172,12 +172,63 @@ main
 		clrf 		ANSEL 		;digital I/O
 		bcf			STATUS,RP0	; Bnak=0
 
-		goto		standby_stage	;電源投入されたら一旦寝る
+;		goto		standby_stage	;電源投入されたら一旦寝る
+;		goto		music_stage
 
 
 
 ;;
 main_loop
+		call		sw1_check	;スイッチが押されたか
+		andlw		0x01
+		btfss		STATUS,Z
+		goto		led1_on		;押されていれば
+		goto		led1_off	;押されていなければ
+led1_on
+		bsf			GPIO,0
+		goto		next1
+led1_off
+		bcf			GPIO,0
+		goto		next1
+
+next1
+		call		sw2_check	;スイッチが押されたか
+		andlw		0x01
+		btfss		STATUS,Z
+		goto		led2_on		;押されていれば
+		goto		led2_off	;押されていなければ
+led2_on
+		bsf			GPIO,1
+		goto		next2
+led2_off
+		bcf			GPIO,1
+		goto		next2
+
+next2		
+		call		sw1_check	;スイッチが押されたか
+		andlw		0x01
+		btfsc		STATUS,Z
+		goto		led3_off	;押されていなければ
+		call		sw2_check	;スイッチが押されたか
+		andlw		0x01
+		btfsc		STATUS,Z
+		goto		led3_off	;押されていなければ
+		goto		led3_on
+led3_off
+		bcf			GPIO,2
+		goto		main_loop
+led3_on
+		bsf			GPIO,2
+		movlw		0x2
+;		call		play_3do
+		bsf			GPIO,5
+		call		DLY_001
+		bcf			GPIO,5
+		call		DLY_001
+		goto		main_loop
+
+
+
 		;; STAGE==0x1
 		movf		STAGE,w
 		sublw		0x1
@@ -195,7 +246,6 @@ main_loop
 
 select_stage
 countdown_stage
-music_stage
 		goto		standby_stage
 ;		movlw		TCNT50MS		;タイマー関連の値をセット
 ;		movwf		TMR0
@@ -270,7 +320,35 @@ music_stage
 
 
 
-
+music_stage
+		movlw		d'3'
+		call		play_2do
+		movlw		d'3'
+		call		play_2re
+		movlw		d'14'
+		call		play_2mi
+		movlw		d'3'
+		call		play_2re
+		movlw		d'5'
+		call		play_2do
+		call		DLY_100
+		call		DLY_100
+		movlw		d'3'
+		call		play_2do
+		movlw		d'3'
+		call		play_2re
+		movlw		d'3'
+		call		play_2mi
+		movlw		d'3'
+		call		play_2re
+		movlw		d'3'
+		call		play_2do
+		movlw		d'17'
+		call		play_2re
+		call		DLY_100
+		call		DLY_100
+		call		DLY_100
+		goto		music_stage
 
 
 
@@ -343,14 +421,14 @@ standby_stage
 sw1_check
 		btfsc		PUSHSW1
 		goto		sw_no		;押されていなければ0をもって即リターン
-		call		DLY_100		;100mS待って
+;		call		DLY_100		;100mS待って
 		btfsc		PUSHSW1		;まだ押されているなら1をもってリターン
 		goto		sw_no
 		goto		sw_yes
 sw2_check
 		btfsc		PUSHSW2
 		goto		sw_no		;押されていなければ0をもって即リターン
-		call		DLY_100		;100mS待って
+;		call		DLY_100		;100mS待って
 		btfsc		PUSHSW2		;まだ押されているなら1をもってリターン
 		goto		sw_no
 		goto		sw_yes
@@ -373,6 +451,26 @@ DLY_50	; 50mS
 		movlw		d'50'
 		movwf		DLY_CNT1
 		goto		DLY1
+DLY_05	; 5mS
+		movlw		d'5'
+		movwf		DLY_CNT1
+		goto		DLY1
+DLY_01	; 1mS
+		movlw		d'1'
+		movwf		DLY_CNT1
+		goto		DLY1
+DLY_005	; 0.5mS
+		movlw		d'1'
+		movwf		DLY_CNT1
+		movlw		d'125'
+		movwf		DLY_CNT2
+		goto		DLY2
+DLY_001	; 0.1mS
+		movlw		d'1'
+		movwf		DLY_CNT1
+		movlw		d'25'
+		movwf		DLY_CNT2
+		goto		DLY2
 DLY1	; 1mS
 		movlw		d'250'
 		movwf		DLY_CNT2
@@ -391,7 +489,7 @@ DLY2
 
 
 se_button
-		movlw		0x1
+		movlw		d'2'
 		call		play_2do
 		return
 
@@ -424,7 +522,7 @@ play_100ms_loop
 delay_NMcycle
 		movf		CNT_256,w
 		movwf		WORK_CNT_256
-		incf		WORK_CNT_256
+		incf		WORK_CNT_256,f
 delay_NMcycle_loop
 		decfsz		WORK_CNT_256,f
 		goto		delay_NMcycle_256cycle
@@ -464,35 +562,6 @@ delay_256cycle
 		movwf		WORK_CNT_N
 		goto		delay_Ncycle_loop
 
-play_1do
-		movwf		CNT_N_100ms
-		movlw		d'26'
-		movwf		CNT_100ms
-		movlw		d'7'
-		movwf		CNT_256
-		movlw		d'119'
-		movwf		CNT_M
-		call		play
-        return
-play_1re
-		movwf		CNT_N_100ms
-		movlw		d'29'
-		movwf		CNT_100ms
-		movlw		d'6'
-		movwf		CNT_256
-		movlw		d'117'
-		movwf		CNT_M
-		call		play
-        return
-play_1mi
-		movwf		CNT_N_100ms
-		movlw		d'33'
-		movwf		CNT_100ms
-		movlw		d'5'
-		movwf		CNT_256
-		movlw		d'237'
-		movwf		CNT_M
-		goto		play
 play_2do
 		movwf		CNT_N_100ms
 		movlw		d'52'
@@ -500,6 +569,33 @@ play_2do
 		movlw		d'3'
 		movwf		CNT_256
 		movlw		d'188'
+		movwf		CNT_M
+		goto		play
+play_2re
+		movwf		CNT_N_100ms
+		movlw		d'59'
+		movwf		CNT_100ms
+		movlw		d'3'
+		movwf		CNT_256
+		movlw		d'83'
+		movwf		CNT_M
+		goto		play
+play_2mi
+		movwf		CNT_N_100ms
+		movlw		d'66'
+		movwf		CNT_100ms
+		movlw		d'2'
+		movwf		CNT_256
+		movlw		d'246'
+		movwf		CNT_M
+		goto		play
+play_3do
+		movwf		CNT_N_100ms
+		movlw		d'105'
+		movwf		CNT_100ms
+		movlw		d'1'
+		movwf		CNT_256
+		movlw		d'222'
 		movwf		CNT_M
 		goto		play
 
