@@ -424,7 +424,7 @@ play_100ms_loop
 delay_NMcycle
 		movf		CNT_256,w
 		movwf		WORK_CNT_256
-		incf		WORK_CNT_256
+		incf		WORK_CNT_256,f
 delay_NMcycle_loop
 		decfsz		WORK_CNT_256,f
 		goto		delay_NMcycle_256cycle
