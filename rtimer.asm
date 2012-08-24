@@ -60,31 +60,37 @@
 ;;  GP5 : output : 圧電スピーカ
 ;;
 
-#define		TCNT1_1min	d'10'	; 1min 用
-#define		TCNT2_2min	d'187'	; 1min 用
-#define		TCNT1_3min	d'10'	; 3min 用
-#define		TCNT2_3min	d'187'	; 3min 用
-#define		TCNT1_4min	d'14'	; 4min 用
-#define		TCNT2_4min	d'78'	; 4min 用
-#define		TCNT1_5min	d'17'	; 5min 用
-#define		TCNT2_5min	d'226'	; 5min 用
+#define		TCNT2_1min	d'3'	; 1min 用
+#define		TCNT1_1min	d'148'	; 1min 用
+#define		TCNT2_3min	d'10'	; 3min 用
+#define		TCNT1_3min	d'187'	; 3min 用
+#define		TCNT2_4min	d'14'	; 4min 用
+#define		TCNT1_4min	d'78'	; 4min 用
+#define		TCNT2_5min	d'17'	; 5min 用
+#define		TCNT1_5min	d'226'	; 5min 用
+#define		SW1_PORT	4
+#define		SW2_PORT	3
 
 #define		LED1		GPIO,0	;LED用ポート
 #define		LED2		GPIO,1	;LED用ポート
 #define		LED3		GPIO,2	;LED用ポート
-#define		PUSHSW1		GPIO,3	;プッシュスイッチ用ポート
-#define		PUSHSW2		GPIO,4	;プッシュスイッチ用ポート
+#define		PUSHSW1		GPIO,SW1_PORT	;プッシュスイッチ用ポート
+#define		PUSHSW2		GPIO,SW2_PORT	;プッシュスイッチ用ポート
 #define		BEEP		GPIO,5	;圧電スピーカポート
 
 ;***** VARIABLE DEFINITIONS
 w_temp			EQU		0x20		;割り込みハンドラ用 
 status_temp		EQU		0x21		;割り込みハンドラ用
-TIMER_CNT1		EQU		0x22		;タイマー用
-TIMER_CNT2		EQU		0x23		;タイマー用
-TIMER_ZERO		EQU		0x24		;タイマーが0になったかどうか
+TCNT1			EQU		0x22		;タイマー用
+TCNT2			EQU		0x23		;タイマー用
+TIMER_ZERO		EQU		0x24		;タイマーが0になったかどうか用
 STAGE			EQU		0x25		;ステージ変数 0:standby 1:select 2:countdown 3:music
 DLY_CNT1		EQU		0x26		;ディレイ用カウント
 DLY_CNT2		EQU		0x27		;ディレイ用カウント
+PUSHSW_STATE	EQU		0x28		;プッシュスイッチのup/down状態
+									;  bit 0,1 : push up/down 状態  0:SW1 down 1:SW1 down
+PUSHSW_TRIGGER	EQU		0x29		;プッシュスイッチのtrigger状態
+									;  bit 0,1 : push trigger 状態  0:SW1 pushed 1:SW1 pushed
 
 CNT_N_100ms		EQU		0x30		;ディレイルーチン用
 CNT_100ms		EQU		0x31		;ディレイルーチン用
@@ -96,7 +102,7 @@ WORK_CNT_256	EQU		0x36		;ディレイルーチン用
 WORK_CNT_M		EQU		0x37		;ディレイルーチン用
 WORK_CNT_N		EQU		0x38		;ディレイルーチン用
 
-
+SELECT_MIN		EQU		0x40		;3,4,5分選択用 0:3分 1:4分 2:5分
 
 ;**********************************************************************
 		ORG			0x000
@@ -108,39 +114,45 @@ WORK_CNT_N		EQU		0x38		;ディレイルーチン用
 		movwf		w_temp
 		movf		STATUS,w
 		movwf		status_temp
+		bcf			INTCON,GIE	;全割り込み停止
 
 		btfss		INTCON,T0IF	;もしもタイマー割り込みでなければ復帰
 		goto		exit_int2
 
-timer_int	;タイマー割り込み時
-		movf		TIMER_CNT1,f
+timer_int	;タイマー割り込み時		
+		movf		TCNT1,f
 		btfss		STATUS,Z
 		goto		decrement_cnt1
-		movf		TIMER_CNT2,f
+		movf		TCNT2,f
 		btfss		STATUS,Z
 		goto		decrement_cnt2
 
 		;; 終了
-		movlw		0x01
-		movf		TIMER_ZERO,f
+		bcf			INTCON,T0IE	;タイマー割り込み停止
+		bsf			TIMER_ZERO,0
 		goto		exit_int2
 
 decrement_cnt1
-		decf		TIMER_CNT1,f		;1秒カウント用をデクリメント
+		decf		TCNT1,f
 		goto		exit_int
 
 decrement_cnt2		;; 繰越
 		movlw		0xff
-		movf		TIMER_CNT1,f
-		decf		TIMER_CNT2,f		;1秒カウント用をデクリメント
+		movwf		TCNT1
+		decf		TCNT2,f
 		goto		exit_int
 
 exit_int
 		clrf		TMR0
-		movlw		b'00100000'	;タイマー割り込み許可、T0IFフラグクリア
-		movwf		INTCON
+;		movlw		b'00100000'	;タイマー割り込み許可、T0IFフラグクリア
+;		movwf		INTCON
+		bsf			INTCON,T0IE
 
 exit_int2
+		bcf			INTCON,T0IF
+		bcf			INTCON,INTF
+		bcf			INTCON,GPIF
+		bsf			INTCON,GIE	;全割り込み開始
 		movf		status_temp,w
 		movwf		STATUS
 		swapf		w_temp,f
@@ -172,10 +184,25 @@ main
 		clrf 		ANSEL 		;digital I/O
 		bcf			STATUS,RP0	; Bnak=0
 
-		goto		standby_stage	;電源投入されたら一旦寝る
+		movlw		0x0			; デフォルト3分
+		movwf		SELECT_MIN
 
+		clrf		PUSHSW_STATE 	;プッシュSWの状態初期化
+		clrf		PUSHSW_TRIGGER	;プッシュSWのトリガー状態初期化
 
+;		goto		standby_stage	;電源投入されたら一旦寝る
 
+;;; debug
+		call		DLY_250
+;		movlw		0x1			;selectステージへ
+;		movwf		STAGE
+;		movlw		TCNT1_1min
+;		movwf		TCNT1
+;		movlw		TCNT2_1min
+;		movwf		TCNT2
+;		clrf		TIMER_ZERO
+		call		init_select_stage
+		
 ;;
 main_loop
 		;; STAGE==0x1
@@ -193,8 +220,81 @@ main_loop
 		;; STAGE==0x3
 		goto		music_stage
 
+
+init_select_stage
+		call		update_pushsw_state_for_resume
+		movlw		0x1			;selectステージへ
+		movwf		STAGE
+init_timer_1min
+		movlw		TCNT1_1min
+		movwf		TCNT1
+		movlw		TCNT2_1min
+		movwf		TCNT2
+		clrf		TIMER_ZERO
+		clrf		TMR0
+		bsf			INTCON,GIE	;タイマー割り込み開始
+		bcf			INTCON,GPIE	;ポートからの再起動設定
+		bsf			INTCON,T0IE
+		return
+
+
+;; select stage
 select_stage
+		btfsc		TIMER_ZERO,0
+		goto		standby_stage
+
+		call		update_pushsw_state
+		btfsc		PUSHSW_TRIGGER,1
+		goto		select_stage_to_countdown_stage	;SW2が押されていれば countdown ステージへ
+
+		btfss		PUSHSW_TRIGGER,0
+		goto		select_stage_draw_led	;押されていなければLED描画へ
+
+		call		se_button
+		call		init_timer_1min
+		incf		SELECT_MIN,f
+		movlw		0x3
+		subwf		SELECT_MIN,w
+		btfsc		STATUS,Z
+		movwf		SELECT_MIN		;3まで行っていたら繰越で0にする
+select_stage_draw_led
+		;; 3min SELECT_MIN==0
+		movf		SELECT_MIN,w
+		sublw		0x0
+		btfsc		STATUS,Z
+		goto		select_stage_draw_led1
+		;; 4min SELECT_MIN==1
+		movf		SELECT_MIN,w
+		sublw		0x1
+		btfsc		STATUS,Z
+		goto		select_stage_draw_led12
+		;; 5min SELECT_MIN==2
+		goto		select_stage_draw_led123
+		
+select_stage_draw_led1
+		bsf			LED1
+		bcf			LED2
+		bcf			LED3
+		goto		main_loop
+select_stage_draw_led12
+		bsf			LED1
+		bsf			LED2
+		bcf			LED3
+		goto		main_loop
+select_stage_draw_led123
+		bsf			LED1
+		bsf			LED2
+		bsf			LED3
+		goto		main_loop
+select_stage_to_countdown_stage
+	goto		standby_stage
+;		movlw		0x2			;countdownステージへ
+;		movwf		STAGE
+;		goto		main_loop
+		
 countdown_stage
+		goto		main_loop
+
 music_stage
 		goto		standby_stage
 ;		movlw		TCNT50MS		;タイマー関連の値をセット
@@ -296,61 +396,77 @@ standby_stage
 		movlw		0x0			;意味ないけど一応セット
 		movwf		STAGE
 
-		bsf			LED1
-		bsf			LED2
-		bsf			LED3
-		call		se_button
-		bcf			LED1
-		bcf			LED2
-		bcf			LED3
-		call		DLY_250
-		bsf			LED1
-		bsf			LED2
-		bsf			LED3
-		call		se_button
-		bcf			LED1
-		bcf			LED2
-		bcf			LED3
-
 		clrf		INTCON		;割り込み禁止
+		clrf		GPIO
 		call		DLY_250 	; ポートが安定するのを待つ
 		call		DLY_250
 		call		DLY_250
-		call		DLY_250 
-
+		call		DLY_250
+		clrf		GPIO
+		clrf		INTCON		;割り込み禁止
 
 		;寝る
 		bsf			STATUS,RP0	;Bank=1
 		clrf		IOC			;I/O状態変化チェック解除
-		bsf			IOC,5		;GPIO5のポート状態チェックを設定
+		bsf			IOC,SW1_PORT;プッシュSW1の割り込みを設定
+		bsf			IOC,SW2_PORT;プッシュSW2の割り込みを設定
 		bcf			STATUS,RP0	;Bank=0
 		bsf			INTCON,GPIE	;ポートからの再起動設定
+		bcf			INTCON,GIE	;
+
 		nop
 		nop
 		sleep					;SLEEPモードへ
 		nop						;このインストラクションはフェッチされる
 		nop
 
-		movlw		0x1			;selectステージへ
-		movwf		STAGE
+		;起きた
+		;音を鳴らす
+		bsf			LED1
+		bsf			LED2
+		bsf			LED3
+		call		se_button
+		bcf			LED1
+		bcf			LED2
+		bcf			LED3
 
+		call		init_select_stage
 		goto		main_loop	;メインループ実行へ
 
 ; メイン処理はここまで
 
 
 ;スイッチ入力チェック
+update_pushsw_state
+		movf		PUSHSW_STATE,w 	;前回の状態をwレジスタへ保持
+		clrf		PUSHSW_STATE
+		btfss		PUSHSW1
+		bsf			PUSHSW_STATE,0
+		btfss		PUSHSW2
+		bsf			PUSHSW_STATE,1
+		xorwf		PUSHSW_STATE,w	;前回の状態とXORし結果を w レジスタへ格納
+		andwf		PUSHSW_STATE,w	;現在の状態とANDを取ることでトリガーを検出
+		movwf		PUSHSW_TRIGGER
+		return
+update_pushsw_state_for_resume	;sleep から起きた場合はトリガー状態は変化なしとする
+		clrf		PUSHSW_STATE
+		btfss		PUSHSW1
+		bsf			PUSHSW_STATE,0
+		btfss		PUSHSW2
+		bsf			PUSHSW_STATE,1
+		clrf		PUSHSW_TRIGGER
+		return
 sw1_check
 		btfsc		PUSHSW1
 		goto		sw_no		;押されていなければ0をもって即リターン
-		call		DLY_100		;100mS待って
+		call		DLY_250		;250mS待って
 		btfsc		PUSHSW1		;まだ押されているなら1をもってリターン
 		goto		sw_no
 		goto		sw_yes
 sw2_check
 		btfsc		PUSHSW2
 		goto		sw_no		;押されていなければ0をもって即リターン
-		call		DLY_100		;100mS待って
+		call		DLY_250		;250mS待って
 		btfsc		PUSHSW2		;まだ押されているなら1をもってリターン
 		goto		sw_no
 		goto		sw_yes
@@ -371,6 +487,10 @@ DLY_100	; 100mS
 		goto		DLY1
 DLY_50	; 50mS
 		movlw		d'50'
+		movwf		DLY_CNT1
+		goto		DLY1
+DLY_05	; 5mS
+		movlw		d'5'
 		movwf		DLY_CNT1
 		goto		DLY1
 DLY1	; 1mS
@@ -401,6 +521,8 @@ se_button
 ;;; @param CNT_256 長さ 256サイクル用カウンタ
 ;;; @param CNT_M 長さ Nサイクル用カウンタ
 play
+		incf		CNT_N_100ms,f
+play_loop
 		decfsz		CNT_N_100ms,f
 		goto		play_100ms
 		return
@@ -414,7 +536,7 @@ play_100ms_loop
 		call		delay_NMcycle
 		decfsz		WORK_CNT_100ms,f
 		goto		play_100ms_loop
-		goto		play
+		goto		play_loop
 
 ;;; 約256*N+M サイクル待つ
 ;;;

@@ -27,7 +27,7 @@
         <developmentServer>localhost</developmentServer>
         <targetDevice>PIC12F683</targetDevice>
         <targetHeader></targetHeader>
-        <platformTool>PICkit2PlatformTool</platformTool>
+        <platformTool>Simulator</platformTool>
         <languageToolchain>MPASMWIN</languageToolchain>
         <languageToolchainVersion>5.46</languageToolchainVersion>
         <platform>4</platform>
