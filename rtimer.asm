@@ -8,11 +8,22 @@
 ;; 周波数             : 4MHz
 ;; プリスケーラ       : 1/256
 ;; タイマ割り込み     : 256us = 0.256[ms]
-;; 0.256[ms] * 256    : 65.536[ms] = 0.065536[s]            : 1タイマ割り込みの間隔
+;; 0.256[ms] * 256    : 65.536[ms] = 0.065536[s]            : タイマ割り込みの間隔 (TMR0 が 0..256 で1周した場合)
 ;; 65.536[ms] * 256   : 16777.216[ms] = 16.777216[s]		: 256カウンタ1 TCNT1
 ;; 16.777216[s] * 256 : 4293.67296[s] = 1.19268693333333[h] : 256カウンタ2 TCNT2
+;; 4293.67296[s] * 256 : 1099180.27776[s] = 305.327854933333[h] = 12.7219939555556[days] : 256カウンタ3 TCNT3 (使わないけどどのくらいか計算してみた)
+;;
+;;
+;; 10sec
+;;    10[s]/0.065536[s] = 152.587890625 = 0*256 + 152.587890625
+;; 20sec
+;;    20[s]/0.065536[s] = 305.17578125  = 1*256 + 49.17578125
+;; 30sec
+;;    30[s]/0.065536[s] = 457.763671875 = 1*256 + 201.763671875
 ;; 1min
-;;    60[s]/0.065536[s] =  915.52734375 =  3*256 + 147.52734375
+;;    60[s]/0.065536[s] =  915.52734375 = 3*256 + 147.52734375
+;; 2min
+;;   120[s]/0.065536[s] = 1831.0546875  = 7*256 + 39.0546875
 ;; 3min
 ;;   180[s]/0.065536[s] = 2746.58203125 = 10*256 + 186.58203125
 ;; 4min
@@ -60,8 +71,16 @@
 ;;  GP5 : output : 圧電スピーカ
 ;;
 
+#define		TCNT2_10sec	d'0'	; 1min 用
+#define		TCNT1_10sec	d'153'	; 1min 用
+#define		TCNT2_20sec	d'1'	; 1min 用
+#define		TCNT1_20sec	d'49'	; 1min 用
+#define		TCNT2_30sec	d'1'	; 1min 用
+#define		TCNT1_30sec	d'202'	; 1min 用
 #define		TCNT2_1min	d'3'	; 1min 用
 #define		TCNT1_1min	d'148'	; 1min 用
+#define		TCNT2_2min	d'7'	; 2min 用
+#define		TCNT1_2min	d'39'	; 2min 用
 #define		TCNT2_3min	d'10'	; 3min 用
 #define		TCNT1_3min	d'187'	; 3min 用
 #define		TCNT2_4min	d'14'	; 4min 用
@@ -103,6 +122,7 @@ WORK_CNT_M		EQU		0x37		;ディレイルーチン用
 WORK_CNT_N		EQU		0x38		;ディレイルーチン用
 
 SELECT_MIN		EQU		0x40		;3,4,5分選択用 0:3分 1:4分 2:5分
+WORK_CNT		EQU		0x41		;カウンタ演算用ワーク変数
 
 ;**********************************************************************
 		ORG			0x000
@@ -190,18 +210,14 @@ main
 		clrf		PUSHSW_STATE 	;プッシュSWの状態初期化
 		clrf		PUSHSW_TRIGGER	;プッシュSWのトリガー状態初期化
 
-;		goto		standby_stage	;電源投入されたら一旦寝る
 
-;;; debug
 		call		DLY_250
-;		movlw		0x1			;selectステージへ
-;		movwf		STAGE
-;		movlw		TCNT1_1min
-;		movwf		TCNT1
-;		movlw		TCNT2_1min
-;		movwf		TCNT2
-;		clrf		TIMER_ZERO
 		call		init_select_stage
+
+;;		movlw		1
+;;		movwf		SELECT_MIN
+;;		goto		goto_countdown_stage
+
 		
 ;;
 main_loop
@@ -221,42 +237,63 @@ main_loop
 		goto		music_stage
 
 
-init_select_stage
-		call		update_pushsw_state_for_resume
-		movlw		0x1			;selectステージへ
-		movwf		STAGE
-init_timer_1min
+init_1min_timer
 		movlw		TCNT1_1min
 		movwf		TCNT1
 		movlw		TCNT2_1min
 		movwf		TCNT2
+		goto		init_timer_register
+init_3min_timer
+		movlw		TCNT1_3min
+		movwf		TCNT1
+		movlw		TCNT2_3min
+		movwf		TCNT2
+		goto		init_timer_register
+init_4min_timer
+		movlw		TCNT1_4min
+		movwf		TCNT1
+		movlw		TCNT2_4min
+		movwf		TCNT2
+		goto		init_timer_register
+init_5min_timer
+		movlw		TCNT1_5min
+		movwf		TCNT1
+		movlw		TCNT2_5min
+		movwf		TCNT2
+		goto		init_timer_register
+init_timer_register
 		clrf		TIMER_ZERO
 		clrf		TMR0
 		bsf			INTCON,GIE	;タイマー割り込み開始
-		bcf			INTCON,GPIE	;ポートからの再起動設定
+		bcf			INTCON,GPIE	;ポートからの再起動クリア
 		bsf			INTCON,T0IE
 		return
 
+;;------------------------------------------------- select stage
+init_select_stage
+		call		update_pushsw_state_for_resume
+		movlw		0x1			;selectステージへ
+		movwf		STAGE
+		goto		init_1min_timer
 
-;; select stage
 select_stage
 		btfsc		TIMER_ZERO,0
 		goto		standby_stage
 
 		call		update_pushsw_state
 		btfsc		PUSHSW_TRIGGER,1
-		goto		select_stage_to_countdown_stage	;SW2が押されていれば countdown ステージへ
+		goto		goto_countdown_stage	;SW2が押されていれば countdown ステージへ
 
 		btfss		PUSHSW_TRIGGER,0
 		goto		select_stage_draw_led	;押されていなければLED描画へ
 
 		call		se_button
-		call		init_timer_1min
+		call		init_1min_timer
 		incf		SELECT_MIN,f
 		movlw		0x3
 		subwf		SELECT_MIN,w
 		btfsc		STATUS,Z
-		movwf		SELECT_MIN		;3まで行っていたら繰越で0にする
+		movwf		SELECT_MIN				;3まで行っていたら繰越で0にする
 select_stage_draw_led
 		;; 3min SELECT_MIN==0
 		movf		SELECT_MIN,w
@@ -286,16 +323,270 @@ select_stage_draw_led123
 		bsf			LED2
 		bsf			LED3
 		goto		main_loop
-select_stage_to_countdown_stage
-	goto		standby_stage
-;		movlw		0x2			;countdownステージへ
-;		movwf		STAGE
-;		goto		main_loop
-		
-countdown_stage
+goto_countdown_stage
+		;; 3min SELECT_MIN==0
+		movf		SELECT_MIN,w
+		sublw		0x0
+		btfss		STATUS,Z
+		goto		goto_countdown_stage_4min
+		call		init_3min_timer
+		goto		goto_countdown_stage_end
+goto_countdown_stage_4min
+		;; 4min SELECT_MIN==1
+		movf		SELECT_MIN,w
+		sublw		0x1
+		btfss		STATUS,Z
+		goto		goto_countdown_stage_5min
+		call		init_4min_timer
+		goto		goto_countdown_stage_end
+goto_countdown_stage_5min
+		;; 5min SELECT_MIN==2
+		call		init_5min_timer
+goto_countdown_stage_end
+		call		se_start_countdown
+		movlw		0x2			;countdownステージへ
+		movwf		STAGE
 		goto		main_loop
 
+
+
+;;------------------------------------------------- countdown stage
+countdown_stage
+		btfsc		TIMER_ZERO,0
+		goto		goto_music_stage 		;時間経過したら music stage へ
+
+		;; 同時押しでstandbyステージへ
+		call		update_pushsw_state
+		btfss		PUSHSW_TRIGGER,0
+		goto		countdown_stage_timer_check	;押されていなければ skip
+		btfss		PUSHSW_TRIGGER,1
+		goto		countdown_stage_timer_check	;押されていなければ skip
+		goto		standby_stage
+		
+
+countdown_stage_timer_check	;SW2が押されていれば countdown ステージへ
+		;; 5-4min かどうかの判定
+		movlw		TCNT2_4min
+		subwf		TCNT2,w
+		btfss		STATUS,C
+		goto		countdown_stage_4_3min		;TCNT2-w < 0 の場合
+		btfss		STATUS,Z
+		goto		countdown_draw_5min			;TCNT2-w > 0 の場合
+		movlw		TCNT1_4min
+		subwf		TCNT1,w
+		btfsc		STATUS,C
+		goto		countdown_draw_5min			;TCNT1-w >= 0 の場合
+countdown_stage_4_3min
+		;; 4-3min かどうかの判定
+		movlw		TCNT2_3min
+		subwf		TCNT2,w
+		btfss		STATUS,C
+		goto		countdown_stage_3_2min		;TCNT2-w < 0 の場合
+		btfss		STATUS,Z
+		goto		countdown_draw_4min			;TCNT2-w > 0 の場合
+		movlw		TCNT1_3min
+		subwf		TCNT1,w
+		btfsc		STATUS,C
+		goto		countdown_draw_4min			;TCNT1-w >= 0 の場合
+countdown_stage_3_2min
+		;; 3-2min かどうかの判定
+		movlw		TCNT2_2min
+		subwf		TCNT2,w
+		btfss		STATUS,C
+		goto		countdown_stage_2_1min		;TCNT2-w < 0 の場合
+		btfss		STATUS,Z
+		goto		countdown_draw_3min			;TCNT2-w > 0 の場合
+		movlw		TCNT1_2min
+		subwf		TCNT1,w
+		btfsc		STATUS,C
+		goto		countdown_draw_3min			;TCNT1-w >= 0 の場合
+countdown_stage_2_1min
+		;; 2-1min かどうかの判定
+		movlw		TCNT2_1min
+		subwf		TCNT2,w
+		btfss		STATUS,C
+		goto		countdown_stage_60_30sec	;TCNT2-w < 0 の場合
+		btfss		STATUS,Z
+		goto		countdown_draw_2min			;TCNT2-w > 0 の場合
+		movlw		TCNT1_1min
+		subwf		TCNT1,w
+		btfsc		STATUS,C
+		goto		countdown_draw_2min			;TCNT1-w >= 0 の場合
+countdown_stage_60_30sec
+		;; 60-30sec かどうかの判定
+		movlw		TCNT2_30sec
+		subwf		TCNT2,w
+		btfss		STATUS,C
+		goto		countdown_stage_30_10sec	;TCNT2-w < 0 の場合
+		btfss		STATUS,Z
+		goto		countdown_draw_60sec		;TCNT2-w > 0 の場合
+		movlw		TCNT1_30sec
+		subwf		TCNT1,w
+		btfsc		STATUS,C
+		goto		countdown_draw_60sec		;TCNT1-w >= 0 の場合
+countdown_stage_30_10sec
+		;; 30-10sec かどうかの判定
+		movlw		TCNT2_10sec
+		subwf		TCNT2,w
+		btfss		STATUS,C
+		goto		countdown_stage_10_0sec		;TCNT2-w < 0 の場合
+		btfss		STATUS,Z
+		goto		countdown_draw_30sec		;TCNT2-w > 0 の場合
+		movlw		TCNT1_10sec
+		subwf		TCNT1,w
+		btfsc		STATUS,C
+		goto		countdown_draw_30sec		;TCNT1-w >= 0 の場合
+countdown_stage_10_0sec
+		goto		countdown_draw_10sec		;TCNT1-w >= 0 の場合
+
+;;; 
+		goto		goto_music_stage
+		goto		main_loop
+
+countdown_draw_5min
+		bsf			LED1
+		bsf			LED2
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		call		DLY_200
+		goto		main_loop
+countdown_draw_4min
+		bsf			LED1
+		bsf			LED2
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		call		DLY_200
+		goto		main_loop
+countdown_draw_3min
+		bsf			LED1
+		bsf			LED2
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		bsf			LED3
+		call		DLY_200
+		bcf			LED3
+		call		DLY_200
+		call		DLY_200
+		goto		main_loop
+countdown_draw_2min
+		bsf			LED1
+		bcf			LED3
+		bsf			LED2
+		call		DLY_200
+		bcf			LED2
+		call		DLY_200
+		bsf			LED2
+		call		DLY_200
+		bcf			LED2
+		call		DLY_200
+		call		DLY_200
+		goto		main_loop
+countdown_draw_1min
+		bcf			LED2
+		bcf			LED3
+		bsf			LED1
+		call		DLY_200
+		bcf			LED1
+		call		DLY_200
+		goto		main_loop
+countdown_draw_60sec
+		bcf			LED2
+		bcf			LED3
+		bsf			LED1
+		call		DLY_200
+		bcf			LED1
+		call		DLY_200
+		goto		main_loop
+countdown_draw_30sec
+		bcf			LED2
+		bcf			LED3
+		bsf			LED1
+		call		DLY_100
+		bcf			LED1
+		call		DLY_100
+		goto		main_loop
+countdown_draw_10sec
+		bcf			LED2
+		bcf			LED3
+		bsf			LED1
+		call		DLY_50
+		bcf			LED1
+		call		DLY_50
+		goto		main_loop
+
+goto_music_stage
+		movlw		0x3			;musicdownステージへ
+		movwf		STAGE
+		goto		main_loop
+
+;;------------------------------------------------- music stage
 music_stage
+        movlw       d'3'
+		call        play_2do
+		movlw       d'3'
+		call        play_2re
+;		movlw       d'14'
+;		call        play_2mi
+;		movlw       d'3'
+;		call        play_2re
+;		movlw       d'5'
+;		call        play_2do
+;		call        DLY_100
+;		call        DLY_100
+;		movlw       d'3'
+;		call        play_2do
+;		movlw       d'3'
+;		call        play_2re
+;		movlw       d'3'
+;		call        play_2mi
+;		movlw       d'3'
+;		call        play_2re
+;		movlw       d'3'
+;		call        play_2do
+;		movlw       d'17'
+;		call        play_2re
+;		call        DLY_100
+;		call        DLY_100
+;		call        DLY_100
+
 		goto		standby_stage
 ;		movlw		TCNT50MS		;タイマー関連の値をセット
 ;		movwf		TMR0
@@ -433,8 +724,8 @@ standby_stage
 		call		init_select_stage
 		goto		main_loop	;メインループ実行へ
 
-; メイン処理はここまで
 
+;;---------------------------------------------------------- sub routines
 
 ;スイッチ入力チェック
 update_pushsw_state
@@ -456,29 +747,19 @@ update_pushsw_state_for_resume	;sleep から起きた場合はトリガー状態
 		bsf			PUSHSW_STATE,1
 		clrf		PUSHSW_TRIGGER
 		return
-sw1_check
-		btfsc		PUSHSW1
-		goto		sw_no		;押されていなければ0をもって即リターン
-		call		DLY_250		;250mS待って
-		btfsc		PUSHSW1		;まだ押されているなら1をもってリターン
-		goto		sw_no
-		goto		sw_yes
-sw2_check
-		btfsc		PUSHSW2
-		goto		sw_no		;押されていなければ0をもって即リターン
-		call		DLY_250		;250mS待って
-		btfsc		PUSHSW2		;まだ押されているなら1をもってリターン
-		goto		sw_no
-		goto		sw_yes
-sw_no
-		retlw		0x00
-sw_yes
-		retlw		0x01
 
 
 ;時間遅延ルーチン類
 DLY_250	; 250mS
 		movlw		d'250'
+		movwf		DLY_CNT1
+		goto		DLY1
+DLY_200	; 200mS
+		movlw		d'200'
+		movwf		DLY_CNT1
+		goto		DLY1
+DLY_150	; 150mS
+		movlw		d'150'
 		movwf		DLY_CNT1
 		goto		DLY1
 DLY_100	; 100mS
@@ -512,7 +793,14 @@ DLY2
 
 se_button
 		movlw		0x1
-		call		play_2do
+		call		play_3do
+		return
+se_start_countdown
+		movlw		0x1
+		call		play_3do
+		call		DLY_100
+		movlw		0x1
+		call		play_3do
 		return
 
 ;;; 音を鳴らす
@@ -586,35 +874,6 @@ delay_256cycle
 		movwf		WORK_CNT_N
 		goto		delay_Ncycle_loop
 
-play_1do
-		movwf		CNT_N_100ms
-		movlw		d'26'
-		movwf		CNT_100ms
-		movlw		d'7'
-		movwf		CNT_256
-		movlw		d'119'
-		movwf		CNT_M
-		call		play
-        return
-play_1re
-		movwf		CNT_N_100ms
-		movlw		d'29'
-		movwf		CNT_100ms
-		movlw		d'6'
-		movwf		CNT_256
-		movlw		d'117'
-		movwf		CNT_M
-		call		play
-        return
-play_1mi
-		movwf		CNT_N_100ms
-		movlw		d'33'
-		movwf		CNT_100ms
-		movlw		d'5'
-		movwf		CNT_256
-		movlw		d'237'
-		movwf		CNT_M
-		goto		play
 play_2do
 		movwf		CNT_N_100ms
 		movlw		d'52'
@@ -622,6 +881,33 @@ play_2do
 		movlw		d'3'
 		movwf		CNT_256
 		movlw		d'188'
+		movwf		CNT_M
+		goto		play
+play_2re
+		movwf		CNT_N_100ms
+		movlw		d'59'
+		movwf		CNT_100ms
+		movlw		d'3'
+		movwf		CNT_256
+		movlw		d'83'
+		movwf		CNT_M
+		goto		play
+play_2mi
+		movwf		CNT_N_100ms
+		movlw		d'66'
+		movwf		CNT_100ms
+		movlw		d'2'
+		movwf		CNT_256
+		movlw		d'246'
+		movwf		CNT_M
+		goto		play
+play_3do
+		movwf		CNT_N_100ms
+		movlw		d'105'
+		movwf		CNT_100ms
+		movlw		d'1'
+		movwf		CNT_256
+		movlw		d'222'
 		movwf		CNT_M
 		goto		play
 
