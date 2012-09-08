@@ -33,7 +33,7 @@ pic_led_helloworld
 
 回路図
 ------
-![回路図] (master/rtimer_circuit_diagram.png)
+![回路図] (pic_ramen_timer/master/rtimer_circuit_diagram.png)
 
 
 
