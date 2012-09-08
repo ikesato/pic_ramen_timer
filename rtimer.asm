@@ -3,7 +3,8 @@
 
 	errorlevel  -302
 
-	__CONFIG   _CP_OFF & _CPD_OFF & _BOREN_OFF & _MCLRE_OFF & _WDT_OFF & _IESO_OFF & _PWRTE_ON & _INTRC_OSC_NOCLKOUT
+;	__CONFIG   _CP_OFF & _CPD_OFF & _BOREN_OFF & _MCLRE_OFF & _WDT_OFF & _IESO_OFF & _PWRTE_ON & _INTRC_OSC_NOCLKOUT
+	__CONFIG   _CP_OFF & _CPD_OFF & _BOREN_ON & _MCLRE_OFF & _WDT_OFF & _IESO_OFF & _PWRTE_ON & _INTRC_OSC_NOCLKOUT
 
 ;; 周波数             : 4MHz
 ;; プリスケーラ       : 1/256
@@ -563,29 +564,29 @@ music_stage
 		call        play_2do
 		movlw       d'3'
 		call        play_2re
-;		movlw       d'14'
-;		call        play_2mi
-;		movlw       d'3'
-;		call        play_2re
-;		movlw       d'5'
-;		call        play_2do
-;		call        DLY_100
-;		call        DLY_100
-;		movlw       d'3'
-;		call        play_2do
-;		movlw       d'3'
-;		call        play_2re
-;		movlw       d'3'
-;		call        play_2mi
-;		movlw       d'3'
-;		call        play_2re
-;		movlw       d'3'
-;		call        play_2do
-;		movlw       d'17'
-;		call        play_2re
-;		call        DLY_100
-;		call        DLY_100
-;		call        DLY_100
+		movlw       d'14'
+		call        play_2mi
+		movlw       d'3'
+		call        play_2re
+		movlw       d'5'
+		call        play_2do
+		call        DLY_100
+		call        DLY_100
+		movlw       d'3'
+		call        play_2do
+		movlw       d'3'
+		call        play_2re
+		movlw       d'3'
+		call        play_2mi
+		movlw       d'3'
+		call        play_2re
+		movlw       d'3'
+		call        play_2do
+		movlw       d'17'
+		call        play_2re
+		call        DLY_100
+		call        DLY_100
+		call        DLY_100
 
 		goto		standby_stage
 ;		movlw		TCNT50MS		;タイマー関連の値をセット
